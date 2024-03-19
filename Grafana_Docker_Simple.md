@@ -1,3 +1,11 @@
+Make a place to keep the docker-compose.yml file below, for instance
+```bash
+mkdir -p /etc/docker/grafana
+```
+
+Then make the file `/etc/docker/grafana/docker-compose.yml`
+
+With content:
 ```yaml
 version: "3.8"
 
@@ -9,6 +17,7 @@ x-environment:
   grafana: &grafana-environment
     GF_SERVER_DOMAIN: grafana.example.com.au
     GF_SERVER_SERVE_FROM_SUB_PATH: true
+    # ^^^ depending on your setup grafana.example.com.au/grafana (true) or just grafana.example.com.au (false)
     GF_FEATURE_TOGGLES_ENABLE: nestedFolders
     GF_SERVER_HTTP_PORT: 3000
     GF_SERVER_PROTOCOL: http
@@ -42,3 +51,5 @@ services:
 volumes:
   grafana_data: {}
 ```
+
+Then `cd /etc/docker/grafana; docker compose up -d` 

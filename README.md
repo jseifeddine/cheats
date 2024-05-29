@@ -26,3 +26,19 @@ Optionally uses pipeviewer (pv), which'll probably need installed if you're on U
 
 `nc -l 7000 | pv | tar -xz`
 ```
+
+
+Lower case
+
+a="HI ALL"
+
+tr
+```bash
+echo "$a" | tr '[:upper:]' '[:lower:]'
+hi all
+```
+awk
+```bash
+echo "$a" | awk '{print tolower($0)}'
+hi all
+```

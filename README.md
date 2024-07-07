@@ -42,3 +42,16 @@ awk
 echo "$a" | awk '{print tolower($0)}'
 hi all
 ```
+
+
+Run a diff over ssh
+```bash
+diff foo <(ssh server 'cat foo')
+
+# or the same with
+ssh server cat foo | diff foo -
+
+# Both remote: 
+diff <(ssh server1 'cat foo') <(ssh server2 'cat foo')
+```
+

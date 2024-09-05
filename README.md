@@ -28,7 +28,7 @@ Optionally uses pipeviewer (pv), which'll probably need installed if you're on U
 ```
 
 
-Lower case to upper
+change case
 
 ```bash
 a="HI ALL"

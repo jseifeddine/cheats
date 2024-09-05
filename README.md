@@ -28,9 +28,11 @@ Optionally uses pipeviewer (pv), which'll probably need installed if you're on U
 ```
 
 
-Lower case
+Lower case to upper
 
+```bash
 a="HI ALL"
+```
 
 tr
 ```bash
@@ -45,6 +47,7 @@ hi all
 
 
 Run a diff over ssh
+
 ```bash
 diff foo <(ssh server 'cat foo')
 
@@ -55,3 +58,8 @@ ssh server cat foo | diff foo -
 diff <(ssh server1 'cat foo') <(ssh server2 'cat foo')
 ```
 
+What is my ip ?
+
+```bash
+dig @resolver1.opendns.com myip.opendns.com A +short
+```

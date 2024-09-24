@@ -1,7 +1,7 @@
 update repositories, install required packages, add docker repo and install docker 
 ```bash
 sudo apt-get update
-sudo apt-get install \
+sudo apt-get install -y \
     ca-certificates \
     curl \
     gnupg

@@ -16,15 +16,16 @@ tcpdump -A -s 10240 'tcp port '"$HTTP_PORT"' and (((ip[2:2] - ((ip[0]&0xf)<<2)) 
 Optionally uses pipeviewer (pv), which'll probably need installed if you're on Ubuntu (`apt-get install pv`)
 
 ```bash
-## On machine A: 
-`cd src-dir/`
 
-`tar -zc * | pv | nc 172.21.1.3 7000`
+## On destination machine:
+cd dst-dir/
+nc -l -p 7000 | pv | tar -xz
 
-## On machine B: 
-`cd dst-dir/`
 
-`nc -l 7000 | pv | tar -xz`
+## On source machine: 
+cd src-dir/
+tar -zc * | pv | nc 172.21.1.3 7000
+
 ```
 
 

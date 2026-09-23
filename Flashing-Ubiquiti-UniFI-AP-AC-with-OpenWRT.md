@@ -42,13 +42,16 @@ If you get a password prompt, `<ctrl c>` to return to your local machine, and co
 ### Step 3: Download Required Files into a local tmp directory
 
 Download the OpenWRT `sysupgrade` image, `mtd` utility, and dependencies on your computer:\
-(versions and support may have changed since this was written)
+(versions and support may have changed since this was written — see [Choosing package versions](#choosing-package-versions))
 ```bash
 mkdir -p /tmp/openwrt && cd /tmp/openwrt
-wget https://downloads.openwrt.org/releases/21.02.0/targets/ath79/generic/packages/mtd_26_mips_24kc.ipk
-wget https://downloads.openwrt.org/releases/21.02.0/targets/ath79/generic/packages/libc_1.1.24-3_mips_24kc.ipk
-wget https://downloads.openwrt.org/releases/21.02.0/packages/mips_24kc/base/libubox20210516_2021-05-16-b14c4688-2_mips_24kc.ipk
+B=https://downloads.openwrt.org/releases/24.10.8
+wget $B/targets/ath79/generic/packages/mtd_26_mips_24kc.ipk
+wget $B/targets/ath79/generic/packages/libc_1.2.5-r4_mips_24kc.ipk
+wget $B/targets/ath79/generic/packages/libgcc1_13.3.0-r4_mips_24kc.ipk
+wget $B/packages/mips_24kc/base/libubox20240329_2025.07.23~49056d17-r1_mips_24kc.ipk
 ```
+`mtd` is dynamically linked against **three** libraries — `libubox.so.<date>`, `libgcc_s.so.1` and `libc.so`. Older versions of this guide omitted `libgcc1` and got away with it because the stock UniFi firmware happens to ship `libgcc_s.so.1` in `/lib`; bundling it removes that assumption.
 
 > ⚠️ **Do not use OpenWRT 23.05.0–23.05.2 or 24.10.0–24.10.2 on Ubiquiti hardware.**
 > Both ranges shipped a bug that leaves the flash **read-only** on many UniFi devices, so you can flash it once and then never sysupgrade again. Fixed in 23.05.3 and 24.10.3 respectively — see the [OpenWRT Ubiquiti page](https://openwrt.org/toh/ubiquiti/common). Pick a current release instead.
@@ -92,20 +95,18 @@ Issue the following commands to install OpenWRT (copy and paste):
 ```bash
 mkdir /tmp/flash
 cd /tmp/flash
-tar -xzOf /tmp/libc_1.1.24-3_mips_24kc.ipk ./data.tar.gz | tar -xz
-tar -xzOf /tmp/mtd_26_mips_24kc.ipk ./data.tar.gz | tar -xz
-tar -xzOf /tmp/libubox20210516_2021-05-16-b14c4688-2_mips_24kc.ipk ./data.tar.gz | tar -xz
+for f in /tmp/*.ipk; do tar -xzOf "$f" ./data.tar.gz | tar -xz; done
 
 # resolve paths / partition indexes rather than hardcoding them
 firmwarefile=$(ls /tmp/openwrt-*-squashfs-sysupgrade.bin)
-bs=$(awk -F: '/"bs"/{print $1}' /proc/mtd)
-echo "image=$firmwarefile  bootselect=/dev/$bs"
+bsdev=$(awk -F: '/"bs"/{print $1}' /proc/mtd)
+echo "image=$firmwarefile  bootselect=/dev/$bsdev"
 
 mtd() { LD_LIBRARY_PATH=/tmp/flash/lib /tmp/flash/lib/ld-musl-mips-sf.so.1 /tmp/flash/sbin/mtd "$@"; }
 
 mtd write "$firmwarefile" kernel0
 mtd erase kernel1
-dd if=/dev/zero bs=1 count=1 of=/dev/$bs
+dd if=/dev/zero bs=1 count=1 of=/dev/$bsdev
 reboot
 ```
 
@@ -113,9 +114,23 @@ Do not reboot if `mtd write` failed — see below. A failed write leaves the sto
 
 After rebooting, your device will boot into OpenWRT, accessible at http://192.168.1.1, with a DHCP server running on the LAN port. WiFi is not configured by default.
 
+## Choosing package versions
+
+Rules, in order of importance:
+
+1. **Take `mtd` and `libubox` from the same OpenWRT release.** `mtd` links against a *dated* soname — `libubox.so.20210516`, `libubox.so.20220515`, `libubox.so.20230523`, `libubox.so.20240329` — which changes every release. Mixing releases gives you a loader failure, not a helpful error. This is the one way to break the procedure by "just using newer".
+2. **Do not use 25.12 or later for the tooling.** OpenWRT switched from `.ipk` to **apk v3** (`ADBd` magic — not `ar`, not gzip). `tar -xzOf pkg.apk ./data.tar.gz` fails outright, so the extraction idiom above does not work at all. Packages there are named `mtd-27.apk` / `libc-1.2.5-r5.apk`.
+3. **There is no functional reason to prefer a newer `mtd`.** It is package version **26** in 21.02, 22.03, 23.05 *and* 24.10. Diffing `package/system/mtd/src/mtd.c` between the 21.02 and 24.10 branches turns up exactly one change: an added `-M <magic>` option for `fixtrx`, irrelevant to UniFi. The command set (`write`/`erase`/`verify`/`dump`/`unlock`/…) is byte-for-byte the same set. The reason to move off 21.02 is simply that it is **end of life** — the URLs still resolve today but will eventually move to `archive.openwrt.org`.
+
+The `sysupgrade` image version is independent of the tooling version — just keep it out of the known-bad ranges in step 3.
+
 ## Troubleshooting
 
 ### `Could not open mtd device: kernel0` / `Can't open device for writing!`
+
+**Changing the OpenWRT package version will not fix this.** `mtd_open()` is unchanged from 21.02 through 24.10: it builds the search string with `snprintf(name, sizeof(name), "\"%s\"", mtd)` — *quotes included* — then `strstr()`s it against each line of `/proc/mtd`, and opens the match with `O_RDWR | O_SYNC`. The same message is printed whether the name wasn't found or the open failed, which is why step 5 exists.
+
+(The unreleased `main` branch does change this: `mtd_open()` gained a `write_mode` flag and now defaults to `O_RDONLY`, so `mtd dump` and `mtd verify` will work against locked partitions. The write path still needs `O_RDWR`, so it will not help you flash.)
 
 `mtd` prints this from `mtd_open()`, which greps `/proc/mtd` for the partition name and then opens `/dev/mtdN` with `O_RDWR`. The same message covers both failure modes, so check `cat /proc/mtd` to tell them apart:
 
